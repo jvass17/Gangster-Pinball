@@ -75,11 +75,11 @@ const rightFlipper = {
 };
 
 const bumpers = [
-  { x: 275, y: 390, r: 46, color: "#ff4e7e", score: 120, glow: 0, label: "DICE" },
-  { x: 460, y: 296, r: 44, color: "#ffca5f", score: 140, glow: 0, label: "CASH" },
-  { x: 645, y: 395, r: 46, color: "#ff4e7e", score: 120, glow: 0, label: "CLUB" },
-  { x: 368, y: 530, r: 40, color: "#ff7fa2", score: 160, glow: 0, label: "ACE" },
-  { x: 555, y: 548, r: 40, color: "#ffcc73", score: 160, glow: 0, label: "BOSS" }
+  { x: 275, y: 390, r: 46, color: "#b51223", score: 120, glow: 0, label: "DICE" },
+  { x: 460, y: 296, r: 44, color: "#b88a34", score: 140, glow: 0, label: "CASH" },
+  { x: 645, y: 395, r: 46, color: "#b51223", score: 120, glow: 0, label: "CLUB" },
+  { x: 368, y: 530, r: 40, color: "#7b0d16", score: 160, glow: 0, label: "ACE" },
+  { x: 555, y: 548, r: 40, color: "#c8a25c", score: 160, glow: 0, label: "BOSS" }
 ];
 
 const targets = [
@@ -155,10 +155,10 @@ function makeAudioEngine() {
   let beatIndex = 0;
 
   const progression = [
-    { root: 130.81, third: 155.56, fifth: 196.0, bass: 65.41 },
-    { root: 138.59, third: 174.61, fifth: 207.65, bass: 69.3 },
-    { root: 146.83, third: 174.61, fifth: 220.0, bass: 73.42 },
-    { root: 123.47, third: 155.56, fifth: 185.0, bass: 61.74 }
+    { root: 110.0, third: 138.59, fifth: 164.81, seventh: 196.0, bass: 55.0 },
+    { root: 123.47, third: 155.56, fifth: 185.0, seventh: 220.0, bass: 61.74 },
+    { root: 130.81, third: 164.81, fifth: 196.0, seventh: 233.08, bass: 65.41 },
+    { root: 98.0, third: 123.47, fifth: 146.83, seventh: 174.61, bass: 49.0 }
   ];
 
   function envGain(bus, start, attack, hold, release, peak) {
@@ -180,7 +180,7 @@ function makeAudioEngine() {
     osc.frequency.setValueAtTime(freq, start);
     osc.detune.value = detune;
     filter.type = "lowpass";
-    filter.frequency.setValueAtTime(type === "triangle" ? 1200 : 2600, start);
+    filter.frequency.setValueAtTime(type === "triangle" ? 900 : 1800, start);
     filter.Q.value = 1.2;
 
     osc.connect(filter);
@@ -231,6 +231,17 @@ function makeAudioEngine() {
     source.stop(start + 0.12);
   }
 
+  function brass(freq, start, duration, volume) {
+    tone(musicBus, "sawtooth", freq, start, duration, volume, 6);
+    tone(musicBus, "triangle", freq * 0.5, start, duration * 0.92, volume * 0.55, -4);
+  }
+
+  function pianoChord(chord, start, volume) {
+    tone(musicBus, "triangle", chord.root * 2, start, 0.22, volume, 0);
+    tone(musicBus, "triangle", chord.third * 2, start + 0.01, 0.2, volume * 0.88, 0);
+    tone(musicBus, "triangle", chord.fifth * 2, start + 0.02, 0.18, volume * 0.8, 0);
+  }
+
   function scheduleMusic() {
     if (!musicStarted || !state.audioEnabled) {
       return;
@@ -239,24 +250,22 @@ function makeAudioEngine() {
     while (nextMusicTime < context.currentTime + 0.45) {
       const chord = progression[chordIndex % progression.length];
       const beat = beatIndex % 8;
-      const beatDur = 0.33;
+      const beatDur = 0.42;
       const isDownbeat = beat === 0 || beat === 4;
 
-      tone(musicBus, "triangle", chord.bass, nextMusicTime, 0.26, isDownbeat ? 0.16 : 0.11, -80);
-      tone(musicBus, "sine", chord.root, nextMusicTime, 0.56, 0.07);
-      tone(musicBus, "sine", chord.third, nextMusicTime + 0.03, 0.52, 0.055);
-      tone(musicBus, "sine", chord.fifth, nextMusicTime + 0.06, 0.48, 0.05);
-
-      if (beat === 2 || beat === 6) {
-        tone(musicBus, "triangle", chord.fifth * 2, nextMusicTime, 0.18, 0.06);
+      tone(musicBus, "triangle", chord.bass, nextMusicTime, 0.34, isDownbeat ? 0.14 : 0.09, -120);
+      if (beat === 0 || beat === 2 || beat === 4 || beat === 6) {
+        pianoChord(chord, nextMusicTime + 0.01, 0.05);
       }
-
-      if (beat % 2 === 0) {
-        cymbal(musicBus, nextMusicTime + 0.02, 0.055);
+      if (beat === 1 || beat === 5) {
+        brass(chord.fifth, nextMusicTime + 0.05, 0.28, 0.045);
       }
-
       if (beat === 3 || beat === 7) {
-        noiseHit(nextMusicTime + 0.03, 0.08, 0.05, false);
+        brass(chord.seventh, nextMusicTime + 0.03, 0.24, 0.036);
+      }
+      if (isDownbeat) {
+        cymbal(musicBus, nextMusicTime + 0.03, 0.03);
+        noiseHit(nextMusicTime + 0.05, 0.07, 0.03, false);
       }
 
       beatIndex += 1;
@@ -298,7 +307,7 @@ function makeAudioEngine() {
       const now = context.currentTime;
       tone(sfxBus, "square", 440, now, 0.08, 0.12);
       tone(sfxBus, "square", 660, now + 0.07, 0.09, 0.1);
-      tone(sfxBus, "triangle", 880, now + 0.14, 0.1, 0.08);
+      tone(sfxBus, "triangle", 780, now + 0.14, 0.1, 0.08);
     },
     flipper() {
       if (!state.audioEnabled) {
@@ -328,8 +337,8 @@ function makeAudioEngine() {
         return;
       }
       const now = context.currentTime;
-      tone(sfxBus, "sine", 660, now, 0.08, 0.06);
-      tone(sfxBus, "sine", 990, now + 0.05, 0.08, 0.05);
+      tone(sfxBus, "triangle", 520, now, 0.08, 0.06);
+      tone(sfxBus, "triangle", 780, now + 0.05, 0.08, 0.05);
     },
     launch(power) {
       if (!state.audioEnabled) {
@@ -858,21 +867,21 @@ function drawBackground() {
   ctx.translate(shakeX, shakeY);
 
   const tableGradient = ctx.createLinearGradient(0, 0, 0, H);
-  tableGradient.addColorStop(0, "#2a0711");
-  tableGradient.addColorStop(0.38, "#17040b");
-  tableGradient.addColorStop(1, "#050102");
+  tableGradient.addColorStop(0, "#140304");
+  tableGradient.addColorStop(0.38, "#090909");
+  tableGradient.addColorStop(1, "#020202");
   ctx.fillStyle = tableGradient;
   ctx.fillRect(0, 0, W, H);
 
   const glow = ctx.createRadialGradient(W / 2, 230, 40, W / 2, 230, 460);
-  glow.addColorStop(0, "rgba(255, 71, 116, 0.24)");
-  glow.addColorStop(0.45, "rgba(255, 71, 116, 0.08)");
-  glow.addColorStop(1, "rgba(255, 71, 116, 0)");
+  glow.addColorStop(0, "rgba(176, 22, 33, 0.18)");
+  glow.addColorStop(0.45, "rgba(176, 22, 33, 0.05)");
+  glow.addColorStop(1, "rgba(176, 22, 33, 0)");
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, W, H);
 
-  ctx.strokeStyle = "rgba(255, 240, 223, 0.12)";
-  ctx.lineWidth = 6;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+  ctx.lineWidth = 8;
   ctx.strokeRect(22, 22, W - 44, H - 44);
 
   drawTableArt();
@@ -893,14 +902,14 @@ function drawUpperArch() {
   ctx.save();
   ctx.beginPath();
   ctx.arc(450, 172, 345, Math.PI * 1.05, Math.PI * 1.95);
-  ctx.strokeStyle = "rgba(255, 228, 191, 0.16)";
-  ctx.lineWidth = 18;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
+  ctx.lineWidth = 20;
   ctx.stroke();
 
   ctx.beginPath();
   ctx.arc(450, 172, 337, Math.PI * 1.05, Math.PI * 1.95);
-  ctx.strokeStyle = "rgba(255, 63, 107, 0.45)";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(207, 24, 41, 0.62)";
+  ctx.lineWidth = 3;
   ctx.stroke();
   ctx.restore();
 }
@@ -909,15 +918,15 @@ function drawTableArt() {
   ctx.save();
 
   const felt = ctx.createLinearGradient(0, 120, 0, H);
-  felt.addColorStop(0, "rgba(104, 7, 28, 0.22)");
-  felt.addColorStop(0.55, "rgba(53, 4, 17, 0.16)");
-  felt.addColorStop(1, "rgba(8, 2, 4, 0.2)");
+  felt.addColorStop(0, "rgba(84, 8, 14, 0.34)");
+  felt.addColorStop(0.55, "rgba(18, 18, 18, 0.18)");
+  felt.addColorStop(1, "rgba(3, 3, 3, 0.22)");
   ctx.fillStyle = felt;
   ctx.fillRect(92, 104, 692, 1208);
 
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
   ctx.lineWidth = 2;
-  for (let y = 160; y < 1220; y += 90) {
+  for (let y = 170; y < 1220; y += 96) {
     ctx.beginPath();
     ctx.moveTo(132, y);
     ctx.lineTo(724, y);
@@ -925,21 +934,21 @@ function drawTableArt() {
   }
 
   const signGlow = 0.55 + Math.sin(state.lampsPulse * 2) * 0.12;
-  ctx.fillStyle = `rgba(255, 82, 132, ${signGlow})`;
+  ctx.fillStyle = `rgba(228, 32, 36, ${signGlow})`;
   ctx.font = "900 70px Palatino Linotype";
   ctx.textAlign = "center";
-  ctx.shadowColor = "rgba(255, 68, 109, 0.85)";
+  ctx.shadowColor = "rgba(187, 28, 32, 0.85)";
   ctx.shadowBlur = 28;
   ctx.fillText("NO MERCY", 450, 142);
 
-  ctx.shadowBlur = 22;
-  ctx.fillStyle = "rgba(255, 214, 133, 0.88)";
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
   ctx.font = "700 25px Trebuchet MS";
   ctx.fillText("HIGH STAKES  |  HOUSE RULES  |  MIDNIGHT ONLY", 450, 188);
 
   ctx.shadowBlur = 0;
-  ctx.globalAlpha = 0.35;
-  ctx.fillStyle = "rgba(255, 244, 227, 0.85)";
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
   ctx.font = "700 126px Palatino Linotype";
   ctx.translate(450, 728);
   ctx.rotate(-0.08);
@@ -948,19 +957,23 @@ function drawTableArt() {
   ctx.translate(-450, -728);
   ctx.globalAlpha = 1;
 
-  ctx.fillStyle = "rgba(255, 214, 133, 0.82)";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
   ctx.font = "800 32px Palatino Linotype";
   ctx.fillText("GARBAGE RUN", 230, 668);
   ctx.fillText("CARD SHARK", 670, 668);
 
-  ctx.strokeStyle = "rgba(255, 97, 184, 0.32)";
-  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(177, 20, 31, 0.44)";
+  ctx.lineWidth = 5;
   ctx.beginPath();
   ctx.moveTo(166, 636);
   ctx.lineTo(296, 636);
   ctx.moveTo(604, 636);
   ctx.lineTo(734, 636);
   ctx.stroke();
+
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(110, 112, 680, 1180);
 
   ctx.restore();
 }
@@ -993,12 +1006,12 @@ function drawLanes() {
   for (const lane of spinnerLanes) {
     const lit = lane.lit;
     ctx.fillStyle = lit > 0
-      ? "rgba(255, 90, 126, 0.18)"
+      ? "rgba(177, 20, 31, 0.22)"
       : "rgba(255, 255, 255, 0.03)";
     ctx.strokeStyle = lit > 0
-      ? "rgba(255, 191, 85, 0.88)"
-      : "rgba(255, 255, 255, 0.12)";
-    ctx.lineWidth = 2;
+      ? "rgba(255, 191, 85, 0.95)"
+      : "rgba(255, 255, 255, 0.2)";
+    ctx.lineWidth = 3;
     roundRect(lane.x, lane.y, lane.w, lane.h, 26, true, true);
 
     ctx.fillStyle = lit > 0 ? "#fff2d7" : "rgba(255, 242, 219, 0.65)";
@@ -1010,11 +1023,12 @@ function drawLanes() {
     ctx.restore();
   }
 
-  ctx.fillStyle = "rgba(255, 242, 219, 0.16)";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
   ctx.fillRect(716, 126, 68, 1150);
-  ctx.strokeStyle = "rgba(255, 201, 104, 0.28)";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+  ctx.lineWidth = 3;
   ctx.strokeRect(716, 126, 68, 1150);
-  ctx.fillStyle = "rgba(255, 232, 204, 0.82)";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
   ctx.font = "700 24px Trebuchet MS";
   ctx.fillText("PLUNGER", 750, 220);
 
@@ -1058,8 +1072,8 @@ function drawBumpers() {
     ctx.font = "900 19px Trebuchet MS";
     ctx.fillText(bumper.label, bumper.x, bumper.y + 7);
 
-    ctx.strokeStyle = `rgba(255, 242, 219, ${glowAlpha})`;
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${glowAlpha + 0.12})`;
+    ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.arc(bumper.x, bumper.y, bumper.r + 9, 0, Math.PI * 2);
     ctx.stroke();
@@ -1076,22 +1090,22 @@ function drawSlings() {
     ctx.lineTo(sling[2].x, sling[2].y);
     ctx.closePath();
     const gradient = ctx.createLinearGradient(sling[0].x, sling[0].y, sling[1].x, sling[1].y);
-    gradient.addColorStop(0, index === 0 ? "#ff3a64" : "#ff83b6");
-    gradient.addColorStop(1, "#f1b450");
+    gradient.addColorStop(0, index === 0 ? "#b51223" : "#8d101a");
+    gradient.addColorStop(1, "#b88a34");
     ctx.fillStyle = gradient;
     ctx.globalAlpha = 0.6;
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = "rgba(255, 241, 223, 0.55)";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+    ctx.lineWidth = 4;
     ctx.stroke();
   });
   ctx.restore();
 }
 
 function drawFlippers() {
-  drawSingleFlipper(leftFlipper, "#ff476f");
-  drawSingleFlipper(rightFlipper, "#ff8ec4");
+  drawSingleFlipper(leftFlipper, "#bf1d2a");
+  drawSingleFlipper(rightFlipper, "#a3121e");
 }
 
 function drawSingleFlipper(flipper, color) {
@@ -1108,7 +1122,7 @@ function drawSingleFlipper(flipper, color) {
   ctx.stroke();
 
   ctx.shadowBlur = 0;
-  ctx.strokeStyle = "rgba(255, 240, 220, 0.22)";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
   ctx.lineWidth = 10;
   ctx.beginPath();
   ctx.moveTo(flipper.pivot.x, flipper.pivot.y);
@@ -1131,7 +1145,7 @@ function drawBall() {
   for (let i = 0; i < ball.trail.length; i += 1) {
     const p = ball.trail[i];
     const alpha = i / ball.trail.length;
-    ctx.fillStyle = `rgba(255, 103, 148, ${alpha * 0.12})`;
+    ctx.fillStyle = `rgba(180, 25, 36, ${alpha * 0.12})`;
     ctx.beginPath();
     ctx.arc(p.x, p.y, ball.r * alpha, 0, Math.PI * 2);
     ctx.fill();
@@ -1153,20 +1167,20 @@ function drawBall() {
 function drawOverlayLights() {
   ctx.save();
   const alpha = 0.32 + Math.sin(state.lampsPulse * 4) * 0.12;
-  ctx.fillStyle = `rgba(255, 74, 116, ${alpha})`;
+  ctx.fillStyle = `rgba(196, 28, 37, ${alpha})`;
   ctx.fillRect(110, 96, 14, 28);
   ctx.fillRect(776, 96, 14, 28);
   ctx.fillStyle = `rgba(255, 201, 104, ${alpha})`;
   ctx.fillRect(160, 98, 14, 28);
   ctx.fillRect(726, 98, 14, 28);
-  ctx.fillStyle = `rgba(255, 106, 178, ${alpha})`;
+  ctx.fillStyle = `rgba(197, 186, 173, ${alpha * 0.82})`;
   ctx.fillRect(430, 90, 40, 14);
   ctx.restore();
 }
 
 function drawCabinetText() {
   ctx.save();
-  ctx.fillStyle = "rgba(255, 242, 219, 0.76)";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
   ctx.font = "700 23px Trebuchet MS";
   ctx.textAlign = "left";
   ctx.fillText("LEFT BANK", 128, 1018);
@@ -1174,13 +1188,13 @@ function drawCabinetText() {
   ctx.fillText("RIGHT BANK", 772, 1018);
 
   ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255, 203, 110, 0.76)";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
   ctx.font = "700 24px Palatino Linotype";
   ctx.fillText("HOLD TO LAUNCH", 450, 1300);
 
   if (state.flashTimer > 0) {
     ctx.globalAlpha = state.flashTimer * 2.4;
-    ctx.fillStyle = "#fff5db";
+    ctx.fillStyle = "#ffffff";
     ctx.font = "900 42px Palatino Linotype";
     ctx.fillText(`HOT STREAK x${state.multiplier}`, 450, 96);
   }
@@ -1188,7 +1202,7 @@ function drawCabinetText() {
   if (!state.running && !state.gameOver) {
     ctx.fillStyle = "rgba(8, 3, 4, 0.44)";
     roundRect(196, 578, 508, 164, 28, true, false);
-    ctx.fillStyle = "#fff3df";
+    ctx.fillStyle = "#ffffff";
     ctx.font = "900 56px Palatino Linotype";
     ctx.fillText("PRESS START", 450, 648);
     ctx.font = "700 24px Trebuchet MS";
@@ -1198,7 +1212,7 @@ function drawCabinetText() {
   if (state.gameOver) {
     ctx.fillStyle = "rgba(10, 3, 4, 0.6)";
     roundRect(182, 544, 536, 226, 30, true, false);
-    ctx.fillStyle = "#fff0df";
+    ctx.fillStyle = "#ffffff";
     ctx.font = "900 64px Palatino Linotype";
     ctx.fillText("GAME OVER", 450, 626);
     ctx.font = "800 28px Trebuchet MS";
