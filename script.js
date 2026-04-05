@@ -4,10 +4,11 @@ const ctx = canvas.getContext("2d");
 const scoreValue = document.getElementById("scoreValue");
 const highScoreValue = document.getElementById("highScoreValue");
 const ballsValue = document.getElementById("ballsValue");
-const multiplierValue = document.getElementById("multiplierValue");
+const modeValue = document.getElementById("modeValue");
 const statusText = document.getElementById("statusText");
 
 const startButton = document.getElementById("startButton");
+const pauseButton = document.getElementById("pauseButton");
 const resetButton = document.getElementById("resetButton");
 const audioButton = document.getElementById("audioButton");
 const leftFlipperButton = document.getElementById("leftFlipperButton");
@@ -16,117 +17,131 @@ const launchButton = document.getElementById("launchButton");
 
 const W = canvas.width;
 const H = canvas.height;
-const DT = 1 / 60;
-const MAX_DT = 1 / 30;
 const DEG = Math.PI / 180;
+const MAX_DT = 1 / 30;
+
+const palette = {
+  white: "#fdf9ff",
+  pink: "#ff4fc3",
+  orange: "#ff7c3f",
+  gold: "#ffd34f",
+  aqua: "#41f0ff",
+  lime: "#8fff4d",
+  violet: "#7a4dff",
+  deep: "#17052b"
+};
 
 const state = {
   running: false,
-  audioEnabled: true,
+  paused: false,
   gameOver: false,
+  audioEnabled: true,
   score: 0,
-  highScore: Number(localStorage.getItem("gangsterPinballHighScore") || 0),
+  highScore: Number(localStorage.getItem("neonSyndicateHighScore") || 0),
   ballsLeft: 3,
-  multiplier: 1,
-  heatValue: 0,
-  launcherCharge: 0,
-  leftPressed: false,
-  rightPressed: false,
-  launchHeld: false,
+  currentMode: "Ready",
+  status: "Press Start, charge the launcher, and survive the candy-bright heat.",
   lastTime: 0,
+  launcherCharge: 0,
+  launchHeld: false,
+  lampsTime: 0,
   flashTimer: 0,
   cameraShake: 0,
-  lampsPulse: 0,
-  ballReadyTimer: 0,
-  currentMessage: "Step up and press Start. Hold launch to fire the ball up the rail."
+  combo: 0,
+  comboTimer: 0,
+  sparkles: [],
+  bursts: []
 };
 
 const ball = {
-  x: 0,
-  y: 0,
+  x: 748,
+  y: 1188,
   vx: 0,
   vy: 0,
-  r: 16,
-  active: false,
+  r: 15,
+  active: true,
   inPlunger: true,
   trail: []
 };
 
 const leftFlipper = {
-  side: "left",
-  pivot: { x: 280, y: 1214 },
-  length: 146,
-  restAngle: 24 * DEG,
+  pivot: { x: 282, y: 1216 },
+  length: 152,
+  restAngle: 25 * DEG,
   activeAngle: -24 * DEG,
-  angle: 24 * DEG,
+  angle: 25 * DEG,
   pressed: false,
-  angularVelocity: 0
+  angularVelocity: 0,
+  glow: 0
 };
 
 const rightFlipper = {
-  side: "right",
-  pivot: { x: 620, y: 1214 },
-  length: 146,
-  restAngle: Math.PI - 24 * DEG,
+  pivot: { x: 618, y: 1216 },
+  length: 152,
+  restAngle: Math.PI - 25 * DEG,
   activeAngle: Math.PI + 24 * DEG,
-  angle: Math.PI - 24 * DEG,
+  angle: Math.PI - 25 * DEG,
   pressed: false,
-  angularVelocity: 0
+  angularVelocity: 0,
+  glow: 0
 };
 
 const bumpers = [
-  { x: 275, y: 390, r: 46, color: "#b51223", score: 120, glow: 0, label: "DICE" },
-  { x: 460, y: 296, r: 44, color: "#b88a34", score: 140, glow: 0, label: "CASH" },
-  { x: 645, y: 395, r: 46, color: "#b51223", score: 120, glow: 0, label: "CLUB" },
-  { x: 368, y: 530, r: 40, color: "#7b0d16", score: 160, glow: 0, label: "ACE" },
-  { x: 555, y: 548, r: 40, color: "#c8a25c", score: 160, glow: 0, label: "BOSS" }
+  { x: 272, y: 340, r: 44, color: palette.aqua, ring: palette.white, score: 150, glow: 0, label: "POP" },
+  { x: 452, y: 290, r: 48, color: palette.orange, ring: palette.gold, score: 200, glow: 0, label: "JAM" },
+  { x: 632, y: 342, r: 44, color: palette.pink, ring: palette.white, score: 150, glow: 0, label: "BLAST" },
+  { x: 360, y: 516, r: 38, color: palette.lime, ring: palette.white, score: 250, glow: 0, label: "ZIP" },
+  { x: 544, y: 534, r: 38, color: palette.violet, ring: palette.white, score: 250, glow: 0, label: "STAR" }
 ];
 
 const targets = [
-  { x: 206, y: 266, w: 34, h: 88, label: "777", lit: 0, score: 180 },
-  { x: 694, y: 266, w: 34, h: 88, label: "$$$", lit: 0, score: 180 },
-  { x: 188, y: 696, w: 32, h: 92, label: "TRK", lit: 0, score: 220 },
-  { x: 712, y: 696, w: 32, h: 92, label: "TBL", lit: 0, score: 220 }
+  { x: 178, y: 258, w: 40, h: 98, label: "1", color: palette.aqua, lit: 0, score: 300 },
+  { x: 236, y: 238, w: 40, h: 98, label: "2", color: palette.pink, lit: 0, score: 300 },
+  { x: 664, y: 238, w: 40, h: 98, label: "3", color: palette.gold, lit: 0, score: 300 },
+  { x: 722, y: 258, w: 40, h: 98, label: "4", color: palette.aqua, lit: 0, score: 300 },
+  { x: 188, y: 708, w: 34, h: 96, label: "RAMP", color: palette.orange, lit: 0, score: 380 },
+  { x: 712, y: 708, w: 34, h: 96, label: "GLOW", color: palette.lime, lit: 0, score: 380 }
 ];
 
-const spinnerLanes = [
-  { x: 224, y: 472, w: 62, h: 212, lit: 0, score: 90, label: "ROLL" },
-  { x: 614, y: 474, w: 62, h: 212, lit: 0, score: 90, label: "HEAT" }
+const rolloverLanes = [
+  { x: 254, y: 174, w: 96, h: 28, lit: 0, score: 500, label: "ACE", color: palette.aqua },
+  { x: 450, y: 156, w: 104, h: 28, lit: 0, score: 600, label: "SUGAR", color: palette.gold },
+  { x: 646, y: 174, w: 96, h: 28, lit: 0, score: 500, label: "GLOW", color: palette.pink }
+];
+
+const sideLanes = [
+  { x: 164, y: 456, w: 64, h: 278, score: 120, color: palette.aqua, lit: 0, label: "SIDE" },
+  { x: 672, y: 456, w: 64, h: 278, score: 120, color: palette.lime, lit: 0, label: "RIDE" }
+];
+
+const ramps = [
+  { color: palette.aqua, points: [{ x: 180, y: 980 }, { x: 212, y: 826 }, { x: 294, y: 592 }, { x: 416, y: 390 }] },
+  { color: palette.pink, points: [{ x: 716, y: 982 }, { x: 688, y: 816 }, { x: 602, y: 588 }, { x: 488, y: 406 }] }
 ];
 
 const slings = [
-  [
-    { x: 182, y: 1114 },
-    { x: 278, y: 1044 },
-    { x: 330, y: 1118 }
-  ],
-  [
-    { x: 718, y: 1114 },
-    { x: 622, y: 1044 },
-    { x: 570, y: 1118 }
-  ]
+  [{ x: 188, y: 1118 }, { x: 286, y: 1046 }, { x: 338, y: 1122 }],
+  [{ x: 712, y: 1118 }, { x: 614, y: 1046 }, { x: 562, y: 1122 }]
 ];
 
 const wallSegments = [
-  { x1: 115, y1: 136, x2: 96, y2: 304 },
-  { x1: 96, y1: 304, x2: 104, y2: 720 },
-  { x1: 104, y1: 720, x2: 128, y2: 1018 },
-  { x1: 128, y1: 1018, x2: 220, y2: 1160 },
-  { x1: 787, y1: 136, x2: 804, y2: 880 },
-  { x1: 804, y1: 880, x2: 804, y2: 1238 },
-  { x1: 220, y1: 1160, x2: 302, y2: 1160 },
-  { x1: 598, y1: 1160, x2: 680, y2: 1160 },
-  { x1: 750, y1: 1240, x2: 750, y2: 168 }
+  { x1: 118, y1: 134, x2: 94, y2: 322 },
+  { x1: 94, y1: 322, x2: 102, y2: 814 },
+  { x1: 102, y1: 814, x2: 122, y2: 1016 },
+  { x1: 122, y1: 1016, x2: 216, y2: 1160 },
+  { x1: 782, y1: 134, x2: 806, y2: 324 },
+  { x1: 806, y1: 324, x2: 796, y2: 1100 },
+  { x1: 214, y1: 1160, x2: 304, y2: 1160 },
+  { x1: 596, y1: 1160, x2: 686, y2: 1160 },
+  { x1: 750, y1: 1260, x2: 750, y2: 156 }
 ];
 
 const guides = [
-  { x1: 202, y1: 1120, x2: 156, y2: 1300 },
-  { x1: 698, y1: 1120, x2: 744, y2: 1300 }
+  { x1: 198, y1: 1124, x2: 154, y2: 1298 },
+  { x1: 702, y1: 1124, x2: 746, y2: 1298 }
 ];
 
-const arcs = [
-  { x: 450, y: 172, r: 345, start: Math.PI * 1.05, end: Math.PI * 1.95 }
-];
+const topArc = { x: 450, y: 172, r: 344, start: Math.PI * 1.05, end: Math.PI * 1.95 };
 
 let audio = null;
 
@@ -140,142 +155,95 @@ function makeAudioEngine() {
   const master = context.createGain();
   const musicBus = context.createGain();
   const sfxBus = context.createGain();
-
-  master.gain.value = 0.72;
-  musicBus.gain.value = 0.23;
+  master.gain.value = 0.8;
+  musicBus.gain.value = 0.2;
   sfxBus.gain.value = 0.9;
   musicBus.connect(master);
   sfxBus.connect(master);
   master.connect(context.destination);
 
   let musicStarted = false;
-  let nextMusicTime = 0;
-  let musicLookAhead = 0;
-  let chordIndex = 0;
+  let nextTime = 0;
   let beatIndex = 0;
+  let loopId = 0;
 
   const progression = [
-    { root: 110.0, third: 138.59, fifth: 164.81, seventh: 196.0, bass: 55.0 },
-    { root: 123.47, third: 155.56, fifth: 185.0, seventh: 220.0, bass: 61.74 },
-    { root: 130.81, third: 164.81, fifth: 196.0, seventh: 233.08, bass: 65.41 },
-    { root: 98.0, third: 123.47, fifth: 146.83, seventh: 174.61, bass: 49.0 }
+    { root: 196.0, third: 246.94, fifth: 293.66, bass: 98.0 },
+    { root: 220.0, third: 277.18, fifth: 329.63, bass: 110.0 },
+    { root: 246.94, third: 311.13, fifth: 369.99, bass: 123.47 },
+    { root: 220.0, third: 261.63, fifth: 329.63, bass: 110.0 }
   ];
 
-  function envGain(bus, start, attack, hold, release, peak) {
+  function env(bus, start, attack, hold, release, amount) {
     const gain = context.createGain();
     gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.linearRampToValueAtTime(peak, start + attack);
-    gain.gain.setValueAtTime(peak, start + attack + hold);
+    gain.gain.linearRampToValueAtTime(amount, start + attack);
+    gain.gain.setValueAtTime(amount, start + attack + hold);
     gain.gain.exponentialRampToValueAtTime(0.0001, start + attack + hold + release);
     gain.connect(bus);
     return gain;
   }
 
-  function tone(bus, type, freq, start, duration, volume, detune = 0) {
+  function tone(bus, type, freq, start, duration, amount, detune = 0, lowpass = 2200) {
     const osc = context.createOscillator();
     const filter = context.createBiquadFilter();
-    const gain = envGain(bus, start, 0.01, duration * 0.35, duration * 0.65, volume);
-
     osc.type = type;
     osc.frequency.setValueAtTime(freq, start);
     osc.detune.value = detune;
     filter.type = "lowpass";
-    filter.frequency.setValueAtTime(type === "triangle" ? 900 : 1800, start);
-    filter.Q.value = 1.2;
-
+    filter.frequency.setValueAtTime(lowpass, start);
+    const gain = env(bus, start, 0.01, duration * 0.4, duration * 0.6, amount);
     osc.connect(filter);
     filter.connect(gain);
     osc.start(start);
     osc.stop(start + duration + 0.08);
   }
 
-  function noiseHit(start, duration, volume, bright = false) {
-    const buffer = context.createBuffer(1, context.sampleRate * duration, context.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < data.length; i += 1) {
-      data[i] = (Math.random() * 2 - 1) * (bright ? 1 : 0.5);
-    }
-
-    const source = context.createBufferSource();
-    const filter = context.createBiquadFilter();
-    const gain = envGain(sfxBus, start, 0.002, duration * 0.15, duration * 0.75, volume);
-
-    source.buffer = buffer;
-    filter.type = bright ? "highpass" : "bandpass";
-    filter.frequency.setValueAtTime(bright ? 2400 : 880, start);
-    filter.Q.value = 0.9;
-
-    source.connect(filter);
-    filter.connect(gain);
-    source.start(start);
-    source.stop(start + duration);
-  }
-
-  function cymbal(bus, start, volume) {
-    const buffer = context.createBuffer(1, context.sampleRate * 0.12, context.sampleRate);
+  function noise(start, duration, amount, highpass = 1800) {
+    const buffer = context.createBuffer(1, Math.max(1, context.sampleRate * duration), context.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < data.length; i += 1) {
       data[i] = Math.random() * 2 - 1;
     }
-    const source = context.createBufferSource();
+    const src = context.createBufferSource();
     const filter = context.createBiquadFilter();
-    const gain = envGain(bus, start, 0.001, 0.01, 0.08, volume);
-
-    source.buffer = buffer;
     filter.type = "highpass";
-    filter.frequency.setValueAtTime(3500, start);
-
-    source.connect(filter);
+    filter.frequency.setValueAtTime(highpass, start);
+    const gain = env(sfxBus, start, 0.002, duration * 0.12, duration * 0.72, amount);
+    src.buffer = buffer;
+    src.connect(filter);
     filter.connect(gain);
-    source.start(start);
-    source.stop(start + 0.12);
-  }
-
-  function brass(freq, start, duration, volume) {
-    tone(musicBus, "sawtooth", freq, start, duration, volume, 6);
-    tone(musicBus, "triangle", freq * 0.5, start, duration * 0.92, volume * 0.55, -4);
-  }
-
-  function pianoChord(chord, start, volume) {
-    tone(musicBus, "triangle", chord.root * 2, start, 0.22, volume, 0);
-    tone(musicBus, "triangle", chord.third * 2, start + 0.01, 0.2, volume * 0.88, 0);
-    tone(musicBus, "triangle", chord.fifth * 2, start + 0.02, 0.18, volume * 0.8, 0);
+    src.start(start);
+    src.stop(start + duration);
   }
 
   function scheduleMusic() {
     if (!musicStarted || !state.audioEnabled) {
       return;
     }
-
-    while (nextMusicTime < context.currentTime + 0.45) {
-      const chord = progression[chordIndex % progression.length];
+    while (nextTime < context.currentTime + 0.45) {
+      const beatDur = 0.24;
       const beat = beatIndex % 8;
-      const beatDur = 0.42;
-      const isDownbeat = beat === 0 || beat === 4;
-
-      tone(musicBus, "triangle", chord.bass, nextMusicTime, 0.34, isDownbeat ? 0.14 : 0.09, -120);
-      if (beat === 0 || beat === 2 || beat === 4 || beat === 6) {
-        pianoChord(chord, nextMusicTime + 0.01, 0.05);
+      const chord = progression[Math.floor(beatIndex / 8) % progression.length];
+      tone(musicBus, "triangle", chord.bass, nextTime, 0.18, beat === 0 || beat === 4 ? 0.1 : 0.075, -90, 900);
+      if (beat % 2 === 0) {
+        tone(musicBus, "triangle", chord.root, nextTime, 0.18, 0.04, 0, 1900);
+        tone(musicBus, "triangle", chord.third, nextTime + 0.02, 0.16, 0.032, 0, 1900);
+        tone(musicBus, "triangle", chord.fifth, nextTime + 0.04, 0.14, 0.028, 0, 1900);
       }
       if (beat === 1 || beat === 5) {
-        brass(chord.fifth, nextMusicTime + 0.05, 0.28, 0.045);
+        tone(musicBus, "sawtooth", chord.fifth * 2, nextTime + 0.02, 0.14, 0.023, 6, 2400);
       }
       if (beat === 3 || beat === 7) {
-        brass(chord.seventh, nextMusicTime + 0.03, 0.24, 0.036);
+        tone(musicBus, "square", chord.third * 2, nextTime + 0.03, 0.12, 0.018, 0, 1600);
       }
-      if (isDownbeat) {
-        cymbal(musicBus, nextMusicTime + 0.03, 0.03);
-        noiseHit(nextMusicTime + 0.05, 0.07, 0.03, false);
+      if (beat % 2 === 0) {
+        noise(nextTime + 0.02, 0.04, 0.016, 3200);
       }
-
+      nextTime += beatDur;
       beatIndex += 1;
-      if (beatIndex % 8 === 0) {
-        chordIndex += 1;
-      }
-      nextMusicTime += beatDur;
     }
-
-    musicLookAhead = requestAnimationFrame(scheduleMusic);
+    loopId = requestAnimationFrame(scheduleMusic);
   }
 
   return {
@@ -285,86 +253,73 @@ function makeAudioEngine() {
       }
       if (!musicStarted) {
         musicStarted = true;
-        nextMusicTime = context.currentTime + 0.05;
+        nextTime = context.currentTime + 0.05;
         beatIndex = 0;
-        chordIndex = 0;
-        cancelAnimationFrame(musicLookAhead);
+        cancelAnimationFrame(loopId);
         scheduleMusic();
       }
     },
     toggle(enabled) {
-      state.audioEnabled = enabled;
       master.gain.cancelScheduledValues(context.currentTime);
-      master.gain.linearRampToValueAtTime(enabled ? 0.72 : 0.0001, context.currentTime + 0.12);
-      if (enabled && musicStarted) {
+      master.gain.linearRampToValueAtTime(enabled ? 0.8 : 0.0001, context.currentTime + 0.1);
+      if (enabled) {
         scheduleMusic();
       }
     },
-    startButton() {
+    start() {
       if (!state.audioEnabled) {
         return;
       }
       const now = context.currentTime;
-      tone(sfxBus, "square", 440, now, 0.08, 0.12);
-      tone(sfxBus, "square", 660, now + 0.07, 0.09, 0.1);
-      tone(sfxBus, "triangle", 780, now + 0.14, 0.1, 0.08);
+      tone(sfxBus, "square", 480, now, 0.08, 0.1);
+      tone(sfxBus, "square", 720, now + 0.07, 0.08, 0.08);
+      tone(sfxBus, "triangle", 960, now + 0.14, 0.1, 0.07);
     },
     flipper() {
       if (!state.audioEnabled) {
         return;
       }
       const now = context.currentTime;
-      noiseHit(now, 0.04, 0.1, true);
-      tone(sfxBus, "square", 260, now, 0.05, 0.08);
+      noise(now, 0.03, 0.07, 2600);
+      tone(sfxBus, "square", 230, now, 0.05, 0.06, 0, 2000);
     },
     bumper(intensity = 1) {
       if (!state.audioEnabled) {
         return;
       }
       const now = context.currentTime;
-      tone(sfxBus, "triangle", 280 + intensity * 90, now, 0.1, 0.1);
-      tone(sfxBus, "square", 560 + intensity * 140, now + 0.03, 0.12, 0.08);
+      tone(sfxBus, "triangle", 260 + intensity * 120, now, 0.08, 0.08, 0, 2400);
+      tone(sfxBus, "square", 620 + intensity * 160, now + 0.03, 0.1, 0.06, 0, 2200);
     },
-    wallHit(speed = 1) {
+    lane() {
       if (!state.audioEnabled) {
         return;
       }
       const now = context.currentTime;
-      tone(sfxBus, "square", 140 + speed * 24, now, 0.04, 0.04);
-    },
-    score() {
-      if (!state.audioEnabled) {
-        return;
-      }
-      const now = context.currentTime;
-      tone(sfxBus, "triangle", 520, now, 0.08, 0.06);
-      tone(sfxBus, "triangle", 780, now + 0.05, 0.08, 0.05);
+      tone(sfxBus, "triangle", 700, now, 0.06, 0.05);
+      tone(sfxBus, "triangle", 930, now + 0.04, 0.07, 0.045);
     },
     launch(power) {
       if (!state.audioEnabled) {
         return;
       }
       const now = context.currentTime;
-      tone(sfxBus, "sawtooth", 160 + power * 130, now, 0.12, 0.08);
-      noiseHit(now + 0.02, 0.08, 0.07, true);
+      tone(sfxBus, "sawtooth", 150 + power * 130, now, 0.14, 0.06, 5, 1800);
+      noise(now + 0.02, 0.06, 0.05, 2200);
     },
-    loseBall() {
+    wall(speed = 1) {
+      if (!state.audioEnabled) {
+        return;
+      }
+      tone(sfxBus, "square", 130 + speed * 30, context.currentTime, 0.03, 0.03, 0, 1700);
+    },
+    drain() {
       if (!state.audioEnabled) {
         return;
       }
       const now = context.currentTime;
-      tone(sfxBus, "triangle", 260, now, 0.12, 0.1);
-      tone(sfxBus, "triangle", 220, now + 0.12, 0.14, 0.09);
-      tone(sfxBus, "triangle", 164, now + 0.25, 0.18, 0.08);
-    },
-    gameOver() {
-      if (!state.audioEnabled) {
-        return;
-      }
-      const now = context.currentTime;
-      tone(sfxBus, "triangle", 330, now, 0.15, 0.08);
-      tone(sfxBus, "triangle", 247, now + 0.16, 0.18, 0.08);
-      tone(sfxBus, "triangle", 196, now + 0.34, 0.32, 0.08);
+      tone(sfxBus, "triangle", 240, now, 0.12, 0.08);
+      tone(sfxBus, "triangle", 180, now + 0.13, 0.16, 0.07);
     }
   };
 }
@@ -373,41 +328,113 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function addScore(points, reason) {
-  const payout = Math.round(points * state.multiplier);
-  state.score += payout;
-  state.heatValue = clamp(state.heatValue + points * 0.012, 0, 320);
-  state.multiplier = 1 + Math.floor(state.heatValue / 90);
-  state.flashTimer = 0.22;
-  updateHud();
-  setStatus(`${reason} pays ${payout.toLocaleString()}. Keep the heat alive.`);
-  if (audio) {
-    audio.score();
-  }
+function setStatus(text) {
+  state.status = text;
+  statusText.textContent = text;
+}
+
+function setMode(text) {
+  state.currentMode = text;
+  modeValue.textContent = text;
 }
 
 function updateHud() {
   scoreValue.textContent = state.score.toLocaleString();
   highScoreValue.textContent = state.highScore.toLocaleString();
-  ballsValue.textContent = state.ballsLeft.toString();
-  multiplierValue.textContent = `x${state.multiplier}`;
+  ballsValue.textContent = String(state.ballsLeft);
+  modeValue.textContent = state.currentMode;
 }
 
-function setStatus(text) {
-  state.currentMessage = text;
-  statusText.textContent = text;
+function addBurst(x, y, color, count, speed = 280, life = 0.55) {
+  for (let i = 0; i < count; i += 1) {
+    const angle = (Math.PI * 2 * i) / count + Math.random() * 0.35;
+    const magnitude = speed * (0.4 + Math.random() * 0.9);
+    state.bursts.push({
+      x,
+      y,
+      vx: Math.cos(angle) * magnitude,
+      vy: Math.sin(angle) * magnitude,
+      life,
+      maxLife: life,
+      size: 3 + Math.random() * 6,
+      color
+    });
+  }
+}
+
+function addSparkleBand(x, y, color) {
+  for (let i = 0; i < 12; i += 1) {
+    state.sparkles.push({
+      x: x + (Math.random() - 0.5) * 36,
+      y: y + (Math.random() - 0.5) * 36,
+      radius: 4 + Math.random() * 10,
+      life: 0.4 + Math.random() * 0.45,
+      maxLife: 0.4 + Math.random() * 0.45,
+      color
+    });
+  }
+}
+
+function award(points, message, color = palette.gold) {
+  let bonus = points;
+  if (state.combo > 1) {
+    bonus += Math.round(points * Math.min(0.45, state.combo * 0.05));
+  }
+  state.score += bonus;
+  state.combo += 1;
+  state.comboTimer = 3;
+  state.flashTimer = 0.25;
+  setStatus(`${message} +${bonus.toLocaleString()}`);
+  if (state.score > state.highScore) {
+    state.highScore = state.score;
+    localStorage.setItem("neonSyndicateHighScore", String(state.highScore));
+  }
+  updateHud();
+  addSparkleBand(ball.x, ball.y, color);
 }
 
 function resetBallToPlunger() {
   ball.x = 748;
-  ball.y = 1184;
+  ball.y = 1188;
   ball.vx = 0;
   ball.vy = 0;
   ball.active = true;
   ball.inPlunger = true;
   ball.trail.length = 0;
   state.launcherCharge = 0;
-  state.ballReadyTimer = 0.4;
+}
+
+function resetRun() {
+  state.running = false;
+  state.paused = false;
+  state.gameOver = false;
+  state.score = 0;
+  state.ballsLeft = 3;
+  state.combo = 0;
+  state.comboTimer = 0;
+  state.flashTimer = 0;
+  state.cameraShake = 0;
+  state.bursts.length = 0;
+  state.sparkles.length = 0;
+  leftFlipper.pressed = false;
+  rightFlipper.pressed = false;
+  state.launchHeld = false;
+  setMode("Ready");
+  setStatus("Press Start, charge the launcher, and survive the candy-bright heat.");
+  bumpers.forEach((bumper) => {
+    bumper.glow = 0;
+  });
+  targets.forEach((target) => {
+    target.lit = 0;
+  });
+  rolloverLanes.forEach((lane) => {
+    lane.lit = 0;
+  });
+  sideLanes.forEach((lane) => {
+    lane.lit = 0;
+  });
+  resetBallToPlunger();
+  updateHud();
 }
 
 function startGame() {
@@ -416,49 +443,44 @@ function startGame() {
   }
   if (audio) {
     audio.unlock();
-    audio.startButton();
+    audio.start();
   }
-
   state.running = true;
+  state.paused = false;
   state.gameOver = false;
   state.score = 0;
   state.ballsLeft = 3;
-  state.multiplier = 1;
-  state.heatValue = 0;
-  state.cameraShake = 0;
-  state.flashTimer = 0;
-  leftFlipper.pressed = false;
-  rightFlipper.pressed = false;
+  state.combo = 0;
+  state.comboTimer = 0;
+  state.bursts.length = 0;
+  state.sparkles.length = 0;
+  setMode("Live");
+  setStatus("Table hot. Charge the launch and start chaining lanes.");
   bumpers.forEach((bumper) => {
     bumper.glow = 0;
   });
   targets.forEach((target) => {
     target.lit = 0;
   });
-  spinnerLanes.forEach((lane) => {
+  rolloverLanes.forEach((lane) => {
+    lane.lit = 0;
+  });
+  sideLanes.forEach((lane) => {
     lane.lit = 0;
   });
   resetBallToPlunger();
   updateHud();
-  setStatus("The back room is open. Hold launch and send it up the rail.");
 }
 
-function resetTable() {
-  state.running = false;
-  state.gameOver = false;
-  state.score = 0;
-  state.ballsLeft = 3;
-  state.multiplier = 1;
-  state.heatValue = 0;
-  state.launcherCharge = 0;
-  state.leftPressed = false;
-  state.rightPressed = false;
-  state.launchHeld = false;
-  leftFlipper.pressed = false;
-  rightFlipper.pressed = false;
-  resetBallToPlunger();
+function pauseGame() {
+  if (!state.running || state.gameOver) {
+    return;
+  }
+  state.paused = !state.paused;
+  setMode(state.paused ? "Paused" : "Live");
+  setStatus(state.paused ? "Paused. Catch your breath." : "Back in action.");
+  pauseButton.textContent = state.paused ? "Resume" : "Pause";
   updateHud();
-  setStatus("Table reset. Press Start when you want back in.");
 }
 
 function loseBall() {
@@ -466,62 +488,49 @@ function loseBall() {
     return;
   }
   state.ballsLeft -= 1;
-  updateHud();
-  state.heatValue = Math.max(0, state.heatValue - 70);
-  state.multiplier = 1 + Math.floor(state.heatValue / 90);
+  state.combo = 0;
+  state.comboTimer = 0;
   if (audio) {
-    audio.loseBall();
+    audio.drain();
   }
-
   if (state.ballsLeft <= 0) {
     state.running = false;
     state.gameOver = true;
     ball.active = false;
-    if (state.score > state.highScore) {
-      state.highScore = state.score;
-      localStorage.setItem("gangsterPinballHighScore", String(state.highScore));
-    }
+    setMode("Game Over");
+    setStatus("Game over. Reset or start again for another run.");
     updateHud();
-    setStatus("Game over. The house keeps the money unless you come back hotter.");
-    if (audio) {
-      audio.gameOver();
-    }
     return;
   }
-
   resetBallToPlunger();
-  setStatus(`Ball drained. ${state.ballsLeft} left. Reload and try another run.`);
+  setMode("Reload");
+  setStatus(`Ball lost. ${state.ballsLeft} left. Recharge and fire again.`);
+  updateHud();
 }
 
 function launchBall() {
-  if (!ball.inPlunger || !state.running || state.gameOver) {
+  if (!ball.inPlunger || !state.running || state.paused) {
     return;
   }
-  const power = clamp(state.launcherCharge, 0.18, 1);
+  const power = clamp(state.launcherCharge, 0.2, 1);
   ball.inPlunger = false;
-  ball.vx = -120 - power * 110;
-  ball.vy = -900 - power * 880;
+  ball.vx = -120 - power * 120;
+  ball.vy = -980 - power * 920;
   state.launcherCharge = 0;
+  setMode("Live");
+  setStatus("Ball flying. Chase the bright lanes and crystal bumpers.");
   if (audio) {
     audio.launch(power);
   }
-  setStatus("Ball launched. Work the flippers and chase the lit action.");
 }
 
 function setFlipperPressed(side, pressed) {
-  if (side === "left") {
-    if (leftFlipper.pressed !== pressed && pressed && audio) {
-      audio.flipper();
-    }
-    leftFlipper.pressed = pressed;
-    state.leftPressed = pressed;
-  } else {
-    if (rightFlipper.pressed !== pressed && pressed && audio) {
-      audio.flipper();
-    }
-    rightFlipper.pressed = pressed;
-    state.rightPressed = pressed;
+  const flipper = side === "left" ? leftFlipper : rightFlipper;
+  if (flipper.pressed !== pressed && pressed && audio) {
+    audio.flipper();
   }
+  flipper.pressed = pressed;
+  flipper.glow = pressed ? 1 : flipper.glow;
 }
 
 function setLaunchHeld(pressed) {
@@ -533,10 +542,9 @@ function setLaunchHeld(pressed) {
 
 function handleKey(event, down) {
   const key = event.key.toLowerCase();
-  if (["arrowleft", "arrowright", "arrowdown", " ", "enter", "a", "d", "s"].includes(key) || event.key === " ") {
+  if (["arrowleft", "arrowright", "arrowdown", "a", "d", "s", "p", " "].includes(key) || event.key === " ") {
     event.preventDefault();
   }
-
   if (key === "arrowleft" || key === "a") {
     setFlipperPressed("left", down);
   }
@@ -546,38 +554,38 @@ function handleKey(event, down) {
   if (key === "arrowdown" || key === "s") {
     setLaunchHeld(down);
   }
-  if (down && key === "enter") {
-    startGame();
+  if (down && key === "p") {
+    pauseGame();
   }
-  if (down && event.key === " ") {
-    if (state.gameOver || !state.running) {
+  if (down && (key === "enter" || event.key === " ")) {
+    if (!state.running || state.gameOver) {
       startGame();
     }
   }
 }
 
-function pointerPress(element, onDown, onUp) {
+function bindTouchControl(button, onDown, onUp) {
   const release = () => {
-    element.classList.remove("active");
+    button.classList.remove("active");
     onUp();
   };
-
-  element.addEventListener("pointerdown", (event) => {
+  button.addEventListener("pointerdown", (event) => {
     event.preventDefault();
-    element.classList.add("active");
+    button.classList.add("active");
     onDown();
   });
-  element.addEventListener("pointerup", release);
-  element.addEventListener("pointercancel", release);
-  element.addEventListener("pointerleave", release);
+  button.addEventListener("pointerup", release);
+  button.addEventListener("pointercancel", release);
+  button.addEventListener("pointerleave", release);
 }
 
 function updateFlipper(flipper, dt) {
   const target = flipper.pressed ? flipper.activeAngle : flipper.restAngle;
   const diff = target - flipper.angle;
-  const maxStep = (flipper.pressed ? 13 : 10) * dt;
-  flipper.angularVelocity = clamp(diff / Math.max(dt, 0.001), -16, 16);
+  const maxStep = (flipper.pressed ? 14 : 11) * dt;
+  flipper.angularVelocity = clamp(diff / Math.max(dt, 0.001), -18, 18);
   flipper.angle += clamp(diff, -maxStep, maxStep);
+  flipper.glow = Math.max(0, flipper.glow - dt * 2.5);
 }
 
 function flipperTip(flipper) {
@@ -587,43 +595,18 @@ function flipperTip(flipper) {
   };
 }
 
-function collideCircleCircle(obj, targetX, targetY, targetRadius) {
-  const dx = obj.x - targetX;
-  const dy = obj.y - targetY;
-  const dist = Math.hypot(dx, dy);
-  const minDist = obj.r + targetRadius;
-  if (dist > 0 && dist < minDist) {
-    const nx = dx / dist;
-    const ny = dy / dist;
-    const overlap = minDist - dist;
-    obj.x += nx * overlap;
-    obj.y += ny * overlap;
-    const velocityAlongNormal = obj.vx * nx + obj.vy * ny;
-    if (velocityAlongNormal < 0) {
-      obj.vx -= 1.85 * velocityAlongNormal * nx;
-      obj.vy -= 1.85 * velocityAlongNormal * ny;
-    }
-    return { hit: true, nx, ny, impact: Math.abs(velocityAlongNormal) };
-  }
-  return { hit: false };
-}
-
 function closestPointOnSegment(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1;
   const dy = y2 - y1;
   const lenSq = dx * dx + dy * dy;
   const t = lenSq === 0 ? 0 : clamp(((px - x1) * dx + (py - y1) * dy) / lenSq, 0, 1);
-  return {
-    x: x1 + dx * t,
-    y: y1 + dy * t,
-    t
-  };
+  return { x: x1 + dx * t, y: y1 + dy * t };
 }
 
-function collideBallWithSegment(obj, x1, y1, x2, y2, bounce = 0.9, push = 0) {
-  const closest = closestPointOnSegment(obj.x, obj.y, x1, y1, x2, y2);
-  const dx = obj.x - closest.x;
-  const dy = obj.y - closest.y;
+function collideBallWithSegment(obj, x1, y1, x2, y2, bounce = 0.92, push = 0) {
+  const point = closestPointOnSegment(obj.x, obj.y, x1, y1, x2, y2);
+  const dx = obj.x - point.x;
+  const dy = obj.y - point.y;
   const dist = Math.hypot(dx, dy);
   if (dist > 0 && dist < obj.r) {
     const nx = dx / dist;
@@ -631,44 +614,37 @@ function collideBallWithSegment(obj, x1, y1, x2, y2, bounce = 0.9, push = 0) {
     const overlap = obj.r - dist + 0.1;
     obj.x += nx * overlap;
     obj.y += ny * overlap;
-    const velAlongNormal = obj.vx * nx + obj.vy * ny;
-    if (velAlongNormal < 0) {
-      obj.vx -= (1 + bounce) * velAlongNormal * nx;
-      obj.vy -= (1 + bounce) * velAlongNormal * ny;
+    const velocity = obj.vx * nx + obj.vy * ny;
+    if (velocity < 0) {
+      obj.vx -= (1 + bounce) * velocity * nx;
+      obj.vy -= (1 + bounce) * velocity * ny;
     }
     obj.vx += nx * push;
     obj.vy += ny * push;
-    return Math.abs(velAlongNormal);
+    return Math.abs(velocity);
   }
   return 0;
 }
 
-function collideBallWithFlipper(flipper) {
-  const tip = flipperTip(flipper);
-  const impact = collideBallWithSegment(ball, flipper.pivot.x, flipper.pivot.y, tip.x, tip.y, 1.08, 0);
-  if (!impact) {
-    return;
+function collideCircleCircle(obj, cx, cy, radius) {
+  const dx = obj.x - cx;
+  const dy = obj.y - cy;
+  const dist = Math.hypot(dx, dy);
+  const minDist = obj.r + radius;
+  if (dist > 0 && dist < minDist) {
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const overlap = minDist - dist;
+    obj.x += nx * overlap;
+    obj.y += ny * overlap;
+    const velocity = obj.vx * nx + obj.vy * ny;
+    if (velocity < 0) {
+      obj.vx -= 1.9 * velocity * nx;
+      obj.vy -= 1.9 * velocity * ny;
+    }
+    return { hit: true, nx, ny, impact: Math.abs(velocity) };
   }
-
-  const tangentX = Math.cos(flipper.angle);
-  const tangentY = Math.sin(flipper.angle);
-  const swing = flipper.angularVelocity * flipper.length * 0.72;
-  ball.vx += tangentX * swing;
-  ball.vy += tangentY * swing;
-
-  if (flipper.side === "left" && flipper.pressed) {
-    ball.vx += 70;
-    ball.vy -= 160;
-  }
-  if (flipper.side === "right" && flipper.pressed) {
-    ball.vx -= 70;
-    ball.vy -= 160;
-  }
-
-  state.cameraShake = Math.max(state.cameraShake, 4);
-  if (audio) {
-    audio.wallHit(Math.min(3, impact / 200));
-  }
+  return { hit: false };
 }
 
 function polygonContainsPoint(point, polygon) {
@@ -687,115 +663,122 @@ function polygonContainsPoint(point, polygon) {
   return inside;
 }
 
+function updateParticles(dt) {
+  state.sparkles = state.sparkles.filter((particle) => {
+    particle.life -= dt;
+    particle.radius += dt * 12;
+    return particle.life > 0;
+  });
+
+  state.bursts = state.bursts.filter((particle) => {
+    particle.life -= dt;
+    particle.vy += 380 * dt;
+    particle.x += particle.vx * dt;
+    particle.y += particle.vy * dt;
+    particle.size *= 0.988;
+    return particle.life > 0;
+  });
+}
+
 function updatePhysics(dt) {
-  state.lampsPulse += dt * 2.4;
+  state.lampsTime += dt * 2.6;
   state.flashTimer = Math.max(0, state.flashTimer - dt);
-  state.cameraShake = Math.max(0, state.cameraShake - dt * 12);
-  state.heatValue = Math.max(0, state.heatValue - dt * 5.2);
-  state.multiplier = 1 + Math.floor(state.heatValue / 90);
-  updateHud();
-
-  updateFlipper(leftFlipper, dt);
-  updateFlipper(rightFlipper, dt);
-
-  if (!state.running || !ball.active) {
-    return;
+  state.cameraShake = Math.max(0, state.cameraShake - dt * 14);
+  state.comboTimer = Math.max(0, state.comboTimer - dt);
+  if (state.comboTimer === 0) {
+    state.combo = 0;
   }
 
-  if (state.ballReadyTimer > 0) {
-    state.ballReadyTimer -= dt;
+  updateParticles(dt);
+  updateFlipper(leftFlipper, dt);
+  updateFlipper(rightFlipper, dt);
+  bumpers.forEach((bumper) => {
+    bumper.glow = Math.max(0, bumper.glow - dt * 3.4);
+  });
+  targets.forEach((target) => {
+    target.lit = Math.max(0, target.lit - dt * 2.4);
+  });
+  rolloverLanes.forEach((lane) => {
+    lane.lit = Math.max(0, lane.lit - dt * 1.9);
+  });
+  sideLanes.forEach((lane) => {
+    lane.lit = Math.max(0, lane.lit - dt * 1.8);
+  });
+
+  if (!state.running || state.paused || !ball.active) {
+    return;
   }
 
   if (ball.inPlunger) {
-    state.launcherCharge = state.launchHeld ? clamp(state.launcherCharge + dt * 0.8, 0, 1) : 0;
+    state.launcherCharge = state.launchHeld ? clamp(state.launcherCharge + dt * 0.85, 0, 1) : 0;
     ball.x = 748;
-    ball.y = 1184 + state.launcherCharge * 108;
+    ball.y = 1188 + state.launcherCharge * 102;
     return;
   }
 
-  ball.vy += 840 * dt;
-  ball.vx *= 0.999;
-  ball.vy *= 0.9994;
-
+  ball.vy += 820 * dt;
+  ball.vx *= 0.9992;
+  ball.vy *= 0.99935;
   ball.x += ball.vx * dt;
   ball.y += ball.vy * dt;
 
   ball.trail.push({ x: ball.x, y: ball.y });
-  if (ball.trail.length > 10) {
+  if (ball.trail.length > 14) {
     ball.trail.shift();
   }
 
   for (const bumper of bumpers) {
-    bumper.glow = Math.max(0, bumper.glow - dt * 3.5);
     const collision = collideCircleCircle(ball, bumper.x, bumper.y, bumper.r);
     if (collision.hit) {
-      const boost = 260;
-      ball.vx += collision.nx * boost;
-      ball.vy += collision.ny * boost - 40;
       bumper.glow = 1;
+      ball.vx += collision.nx * 260;
+      ball.vy += collision.ny * 260 - 60;
       state.cameraShake = Math.max(state.cameraShake, 10);
-      addScore(bumper.score, `${bumper.label} bumper`);
+      award(bumper.score, `${bumper.label} bumper`, bumper.color);
+      addBurst(bumper.x, bumper.y, bumper.color, 14, 260, 0.55);
       if (audio) {
-        audio.bumper(Math.min(1.5, collision.impact / 220));
+        audio.bumper(Math.min(1.4, collision.impact / 220));
       }
     }
   }
 
-  for (const segment of wallSegments) {
-    const impact = collideBallWithSegment(ball, segment.x1, segment.y1, segment.x2, segment.y2, 0.94, 0);
-    if (impact && audio) {
-      audio.wallHit(Math.min(3, impact / 180));
-    }
-  }
-
-  for (const guide of guides) {
-    const impact = collideBallWithSegment(ball, guide.x1, guide.y1, guide.x2, guide.y2, 0.9, 18);
-    if (impact && audio) {
-      audio.wallHit(impact / 180);
-    }
-  }
-
-  for (const arc of arcs) {
-    const dx = ball.x - arc.x;
-    const dy = ball.y - arc.y;
-    const angle = Math.atan2(dy, dx);
-    const normalized = angle < 0 ? angle + Math.PI * 2 : angle;
-    const start = arc.start < 0 ? arc.start + Math.PI * 2 : arc.start;
-    const dist = Math.hypot(dx, dy);
-    const target = arc.r - ball.r;
-    if (normalized >= start || normalized <= (arc.end - Math.PI * 2)) {
-      if (dist > target) {
-        const nx = dx / dist;
-        const ny = dy / dist;
-        ball.x = arc.x + nx * target;
-        ball.y = arc.y + ny * target;
-        const velAlong = ball.vx * nx + ball.vy * ny;
-        if (velAlong > 0) {
-          ball.vx -= 1.82 * velAlong * nx;
-          ball.vy -= 1.82 * velAlong * ny;
+  for (const lane of rolloverLanes) {
+    if (ball.x > lane.x - lane.w / 2 && ball.x < lane.x + lane.w / 2 && ball.y > lane.y - 20 && ball.y < lane.y + 18) {
+      if (lane.lit <= 0.02) {
+        lane.lit = 1;
+        award(lane.score, `${lane.label} lane`, lane.color);
+        addBurst(lane.x, lane.y, lane.color, 10, 170, 0.45);
+        if (audio) {
+          audio.lane();
         }
       }
     }
   }
 
-  collideBallWithFlipper(leftFlipper);
-  collideBallWithFlipper(rightFlipper);
+  if (rolloverLanes.every((lane) => lane.lit > 0.55)) {
+    rolloverLanes.forEach((lane) => {
+      lane.lit = 0.3;
+    });
+    award(1600, "Jackpot circuit complete", palette.gold);
+    setMode("Jackpot");
+    addBurst(450, 218, palette.gold, 30, 320, 0.8);
+  } else if (!state.paused && !state.gameOver) {
+    setMode(ball.inPlunger ? "Ready" : "Live");
+  }
 
-  for (let i = 0; i < slings.length; i += 1) {
-    const sling = slings[i];
-    if (polygonContainsPoint(ball, sling)) {
-      ball.vy -= 280;
-      ball.vx += i === 0 ? 180 : -180;
-      addScore(110, "Side sling");
-      state.cameraShake = Math.max(state.cameraShake, 8);
-      if (audio) {
-        audio.bumper(0.8);
+  for (const lane of sideLanes) {
+    if (ball.x > lane.x && ball.x < lane.x + lane.w && ball.y > lane.y && ball.y < lane.y + lane.h) {
+      lane.lit = 1;
+      if (Math.random() < 0.09) {
+        award(lane.score, `${lane.label} lane`, lane.color);
+        if (audio) {
+          audio.lane();
+        }
       }
     }
   }
 
   for (const target of targets) {
-    target.lit = Math.max(0, target.lit - dt * 2.6);
     const left = target.x - target.w / 2;
     const right = target.x + target.w / 2;
     const top = target.y - target.h / 2;
@@ -806,423 +789,108 @@ function updatePhysics(dt) {
     const dy = ball.y - closestY;
     if (dx * dx + dy * dy < ball.r * ball.r) {
       if (Math.abs(dx) > Math.abs(dy)) {
-        ball.vx *= -0.92;
-        ball.x += dx > 0 ? 6 : -6;
+        ball.vx *= -0.94;
+        ball.x += dx > 0 ? 5 : -5;
       } else {
-        ball.vy *= -0.92;
-        ball.y += dy > 0 ? 6 : -6;
+        ball.vy *= -0.94;
+        ball.y += dy > 0 ? 5 : -5;
       }
-      target.lit = 1;
-      addScore(target.score, `${target.label} target`);
-    }
-  }
-
-  for (const lane of spinnerLanes) {
-    lane.lit = Math.max(0, lane.lit - dt * 2.2);
-    if (
-      ball.x > lane.x
-      && ball.x < lane.x + lane.w
-      && ball.y > lane.y
-      && ball.y < lane.y + lane.h
-    ) {
-      lane.lit = 1;
-      state.heatValue = clamp(state.heatValue + dt * 95, 0, 320);
-      if (Math.random() < 0.08) {
-        addScore(lane.score, `${lane.label} lane`);
+      if (target.lit < 0.2) {
+        target.lit = 1;
+        award(target.score, `${target.label} target`, target.color);
+        addBurst(target.x, target.y, target.color, 12, 210, 0.5);
       }
     }
   }
 
-  if (ball.x < ball.r + 78) {
-    ball.x = ball.r + 78;
+  for (const segment of wallSegments) {
+    const impact = collideBallWithSegment(ball, segment.x1, segment.y1, segment.x2, segment.y2, 0.94, 0);
+    if (impact && audio) {
+      audio.wall(Math.min(3, impact / 180));
+    }
+  }
+
+  for (const guide of guides) {
+    const impact = collideBallWithSegment(ball, guide.x1, guide.y1, guide.x2, guide.y2, 0.92, 20);
+    if (impact && audio) {
+      audio.wall(impact / 180);
+    }
+  }
+
+  const dxArc = ball.x - topArc.x;
+  const dyArc = ball.y - topArc.y;
+  const distArc = Math.hypot(dxArc, dyArc);
+  const angleArc = Math.atan2(dyArc, dxArc);
+  if ((angleArc >= topArc.start || angleArc <= topArc.end - Math.PI * 2) && distArc > topArc.r - ball.r) {
+    const nx = dxArc / distArc;
+    const ny = dyArc / distArc;
+    ball.x = topArc.x + nx * (topArc.r - ball.r);
+    ball.y = topArc.y + ny * (topArc.r - ball.r);
+    const vel = ball.vx * nx + ball.vy * ny;
+    if (vel > 0) {
+      ball.vx -= 1.8 * vel * nx;
+      ball.vy -= 1.8 * vel * ny;
+    }
+  }
+
+  collideBallWithFlipper(leftFlipper, "left");
+  collideBallWithFlipper(rightFlipper, "right");
+
+  for (let i = 0; i < slings.length; i += 1) {
+    if (polygonContainsPoint(ball, slings[i])) {
+      ball.vy -= 300;
+      ball.vx += i === 0 ? 190 : -190;
+      award(180, "Sling pop", i === 0 ? palette.aqua : palette.pink);
+      addBurst(ball.x, ball.y, i === 0 ? palette.aqua : palette.pink, 10, 180, 0.42);
+      if (audio) {
+        audio.bumper(0.7);
+      }
+    }
+  }
+
+  if (ball.x < ball.r + 82) {
+    ball.x = ball.r + 82;
     ball.vx = Math.abs(ball.vx) * 0.92;
   }
-  if (ball.x > 786 - ball.r && ball.y > 130) {
+  if (ball.x > 786 - ball.r && ball.y > 118) {
     ball.x = 786 - ball.r;
     ball.vx = -Math.abs(ball.vx) * 0.92;
   }
-
   if (ball.y < ball.r + 102) {
     ball.y = ball.r + 102;
     ball.vy = Math.abs(ball.vy) * 0.92;
   }
-
   if (ball.y > H + 60) {
     loseBall();
   }
 
-  if (state.score > state.highScore) {
-    state.highScore = state.score;
-    localStorage.setItem("gangsterPinballHighScore", String(state.highScore));
-    updateHud();
-  }
+  updateHud();
 }
 
-function drawBackground() {
-  ctx.clearRect(0, 0, W, H);
-
-  const shakeX = (Math.random() - 0.5) * state.cameraShake;
-  const shakeY = (Math.random() - 0.5) * state.cameraShake;
-  ctx.save();
-  ctx.translate(shakeX, shakeY);
-
-  const tableGradient = ctx.createLinearGradient(0, 0, 0, H);
-  tableGradient.addColorStop(0, "#140304");
-  tableGradient.addColorStop(0.38, "#090909");
-  tableGradient.addColorStop(1, "#020202");
-  ctx.fillStyle = tableGradient;
-  ctx.fillRect(0, 0, W, H);
-
-  const glow = ctx.createRadialGradient(W / 2, 230, 40, W / 2, 230, 460);
-  glow.addColorStop(0, "rgba(176, 22, 33, 0.18)");
-  glow.addColorStop(0.45, "rgba(176, 22, 33, 0.05)");
-  glow.addColorStop(1, "rgba(176, 22, 33, 0)");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
-  ctx.lineWidth = 8;
-  ctx.strokeRect(22, 22, W - 44, H - 44);
-
-  drawTableArt();
-  drawUpperArch();
-  drawLanes();
-  drawTargets();
-  drawBumpers();
-  drawSlings();
-  drawFlippers();
-  drawBall();
-  drawOverlayLights();
-  drawCabinetText();
-
-  ctx.restore();
-}
-
-function drawUpperArch() {
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(450, 172, 345, Math.PI * 1.05, Math.PI * 1.95);
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
-  ctx.lineWidth = 20;
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(450, 172, 337, Math.PI * 1.05, Math.PI * 1.95);
-  ctx.strokeStyle = "rgba(207, 24, 41, 0.62)";
-  ctx.lineWidth = 3;
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawTableArt() {
-  ctx.save();
-
-  const felt = ctx.createLinearGradient(0, 120, 0, H);
-  felt.addColorStop(0, "rgba(84, 8, 14, 0.34)");
-  felt.addColorStop(0.55, "rgba(18, 18, 18, 0.18)");
-  felt.addColorStop(1, "rgba(3, 3, 3, 0.22)");
-  ctx.fillStyle = felt;
-  ctx.fillRect(92, 104, 692, 1208);
-
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
-  ctx.lineWidth = 2;
-  for (let y = 170; y < 1220; y += 96) {
-    ctx.beginPath();
-    ctx.moveTo(132, y);
-    ctx.lineTo(724, y);
-    ctx.stroke();
-  }
-
-  const signGlow = 0.55 + Math.sin(state.lampsPulse * 2) * 0.12;
-  ctx.fillStyle = `rgba(228, 32, 36, ${signGlow})`;
-  ctx.font = "900 70px Palatino Linotype";
-  ctx.textAlign = "center";
-  ctx.shadowColor = "rgba(187, 28, 32, 0.85)";
-  ctx.shadowBlur = 28;
-  ctx.fillText("NO MERCY", 450, 142);
-
-  ctx.shadowBlur = 8;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
-  ctx.font = "700 25px Trebuchet MS";
-  ctx.fillText("HIGH STAKES  |  HOUSE RULES  |  MIDNIGHT ONLY", 450, 188);
-
-  ctx.shadowBlur = 0;
-  ctx.globalAlpha = 0.18;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-  ctx.font = "700 126px Palatino Linotype";
-  ctx.translate(450, 728);
-  ctx.rotate(-0.08);
-  ctx.fillText("BOSS", 0, 0);
-  ctx.rotate(0.08);
-  ctx.translate(-450, -728);
-  ctx.globalAlpha = 1;
-
-  ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
-  ctx.font = "800 32px Palatino Linotype";
-  ctx.fillText("GARBAGE RUN", 230, 668);
-  ctx.fillText("CARD SHARK", 670, 668);
-
-  ctx.strokeStyle = "rgba(177, 20, 31, 0.44)";
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(166, 636);
-  ctx.lineTo(296, 636);
-  ctx.moveTo(604, 636);
-  ctx.lineTo(734, 636);
-  ctx.stroke();
-
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
-  ctx.lineWidth = 3;
-  ctx.strokeRect(110, 112, 680, 1180);
-
-  ctx.restore();
-}
-
-function drawTargets() {
-  ctx.save();
-  ctx.textAlign = "center";
-  for (const target of targets) {
-    const glow = target.lit;
-    ctx.fillStyle = `rgba(60, 5, 16, ${0.88 + glow * 0.08})`;
-    ctx.strokeStyle = glow > 0
-      ? "rgba(255, 211, 123, 0.95)"
-      : "rgba(255, 255, 255, 0.18)";
-    ctx.lineWidth = glow > 0 ? 4 : 2;
-    ctx.shadowColor = glow > 0 ? "rgba(255, 69, 119, 0.8)" : "transparent";
-    ctx.shadowBlur = glow > 0 ? 18 : 0;
-    roundRect(target.x - target.w / 2, target.y - target.h / 2, target.w, target.h, 14, true, true);
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle = glow > 0 ? "#fff3d8" : "rgba(255, 242, 219, 0.8)";
-    ctx.font = "800 22px Trebuchet MS";
-    ctx.fillText(target.label, target.x, target.y + 8);
-  }
-  ctx.restore();
-}
-
-function drawLanes() {
-  ctx.save();
-  ctx.textAlign = "center";
-  for (const lane of spinnerLanes) {
-    const lit = lane.lit;
-    ctx.fillStyle = lit > 0
-      ? "rgba(177, 20, 31, 0.22)"
-      : "rgba(255, 255, 255, 0.03)";
-    ctx.strokeStyle = lit > 0
-      ? "rgba(255, 191, 85, 0.95)"
-      : "rgba(255, 255, 255, 0.2)";
-    ctx.lineWidth = 3;
-    roundRect(lane.x, lane.y, lane.w, lane.h, 26, true, true);
-
-    ctx.fillStyle = lit > 0 ? "#fff2d7" : "rgba(255, 242, 219, 0.65)";
-    ctx.font = "800 21px Trebuchet MS";
-    ctx.save();
-    ctx.translate(lane.x + lane.w / 2, lane.y + lane.h / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText(lane.label, 0, 8);
-    ctx.restore();
-  }
-
-  ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
-  ctx.fillRect(716, 126, 68, 1150);
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
-  ctx.lineWidth = 3;
-  ctx.strokeRect(716, 126, 68, 1150);
-  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-  ctx.font = "700 24px Trebuchet MS";
-  ctx.fillText("PLUNGER", 750, 220);
-
-  if (ball.inPlunger) {
-    ctx.fillStyle = "rgba(246, 191, 81, 0.48)";
-    ctx.fillRect(726, 1260 - state.launcherCharge * 160, 48, state.launcherCharge * 160);
-  }
-  ctx.restore();
-}
-
-function drawBumpers() {
-  ctx.save();
-  ctx.textAlign = "center";
-  for (const bumper of bumpers) {
-    const pulse = 0.76 + Math.sin(state.lampsPulse * 3 + bumper.x * 0.01) * 0.08;
-    const glowAlpha = 0.22 + bumper.glow * 0.35;
-    const outer = ctx.createRadialGradient(bumper.x, bumper.y, 14, bumper.x, bumper.y, bumper.r + 34);
-    outer.addColorStop(0, `rgba(255, 255, 255, ${0.2 + bumper.glow * 0.24})`);
-    outer.addColorStop(0.32, `${bumper.color}${Math.round((0.78 + bumper.glow * 0.18) * 255).toString(16).padStart(2, "0")}`);
-    outer.addColorStop(1, "rgba(0,0,0,0)");
-
-    ctx.fillStyle = outer;
-    ctx.beginPath();
-    ctx.arc(bumper.x, bumper.y, bumper.r + 34, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.shadowColor = bumper.color;
-    ctx.shadowBlur = 24 + bumper.glow * 30;
-    ctx.fillStyle = bumper.color;
-    ctx.beginPath();
-    ctx.arc(bumper.x, bumper.y, bumper.r, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = `rgba(255, 244, 224, ${0.94 * pulse})`;
-    ctx.beginPath();
-    ctx.arc(bumper.x, bumper.y, bumper.r * 0.56, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#311015";
-    ctx.font = "900 19px Trebuchet MS";
-    ctx.fillText(bumper.label, bumper.x, bumper.y + 7);
-
-    ctx.strokeStyle = `rgba(255, 255, 255, ${glowAlpha + 0.12})`;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(bumper.x, bumper.y, bumper.r + 9, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function drawSlings() {
-  ctx.save();
-  slings.forEach((sling, index) => {
-    ctx.beginPath();
-    ctx.moveTo(sling[0].x, sling[0].y);
-    ctx.lineTo(sling[1].x, sling[1].y);
-    ctx.lineTo(sling[2].x, sling[2].y);
-    ctx.closePath();
-    const gradient = ctx.createLinearGradient(sling[0].x, sling[0].y, sling[1].x, sling[1].y);
-    gradient.addColorStop(0, index === 0 ? "#b51223" : "#8d101a");
-    gradient.addColorStop(1, "#b88a34");
-    ctx.fillStyle = gradient;
-    ctx.globalAlpha = 0.6;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
-    ctx.lineWidth = 4;
-    ctx.stroke();
-  });
-  ctx.restore();
-}
-
-function drawFlippers() {
-  drawSingleFlipper(leftFlipper, "#bf1d2a");
-  drawSingleFlipper(rightFlipper, "#a3121e");
-}
-
-function drawSingleFlipper(flipper, color) {
+function collideBallWithFlipper(flipper, side) {
   const tip = flipperTip(flipper);
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineCap = "round";
-  ctx.lineWidth = 28;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 20;
-  ctx.beginPath();
-  ctx.moveTo(flipper.pivot.x, flipper.pivot.y);
-  ctx.lineTo(tip.x, tip.y);
-  ctx.stroke();
-
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
-  ctx.lineWidth = 10;
-  ctx.beginPath();
-  ctx.moveTo(flipper.pivot.x, flipper.pivot.y);
-  ctx.lineTo(tip.x, tip.y);
-  ctx.stroke();
-
-  ctx.fillStyle = "#fff0df";
-  ctx.beginPath();
-  ctx.arc(flipper.pivot.x, flipper.pivot.y, 18, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
-function drawBall() {
-  if (!ball.active) {
+  const impact = collideBallWithSegment(ball, flipper.pivot.x, flipper.pivot.y, tip.x, tip.y, 1.08, 0);
+  if (!impact) {
     return;
   }
-
-  ctx.save();
-  for (let i = 0; i < ball.trail.length; i += 1) {
-    const p = ball.trail[i];
-    const alpha = i / ball.trail.length;
-    ctx.fillStyle = `rgba(180, 25, 36, ${alpha * 0.12})`;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, ball.r * alpha, 0, Math.PI * 2);
-    ctx.fill();
+  const tangentX = Math.cos(flipper.angle);
+  const tangentY = Math.sin(flipper.angle);
+  const swing = flipper.angularVelocity * flipper.length * 0.72;
+  ball.vx += tangentX * swing;
+  ball.vy += tangentY * swing;
+  if (side === "left" && flipper.pressed) {
+    ball.vx += 60;
+    ball.vy -= 170;
   }
-
-  const gradient = ctx.createRadialGradient(ball.x - 4, ball.y - 8, 3, ball.x, ball.y, ball.r + 6);
-  gradient.addColorStop(0, "#fffefb");
-  gradient.addColorStop(0.45, "#f7dabb");
-  gradient.addColorStop(1, "#b47848");
-  ctx.shadowColor = "rgba(255, 240, 220, 0.7)";
-  ctx.shadowBlur = 18;
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  if (side === "right" && flipper.pressed) {
+    ball.vx -= 60;
+    ball.vy -= 170;
+  }
+  flipper.glow = 1;
+  state.cameraShake = Math.max(state.cameraShake, 5);
 }
 
-function drawOverlayLights() {
-  ctx.save();
-  const alpha = 0.32 + Math.sin(state.lampsPulse * 4) * 0.12;
-  ctx.fillStyle = `rgba(196, 28, 37, ${alpha})`;
-  ctx.fillRect(110, 96, 14, 28);
-  ctx.fillRect(776, 96, 14, 28);
-  ctx.fillStyle = `rgba(255, 201, 104, ${alpha})`;
-  ctx.fillRect(160, 98, 14, 28);
-  ctx.fillRect(726, 98, 14, 28);
-  ctx.fillStyle = `rgba(197, 186, 173, ${alpha * 0.82})`;
-  ctx.fillRect(430, 90, 40, 14);
-  ctx.restore();
-}
-
-function drawCabinetText() {
-  ctx.save();
-  ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
-  ctx.font = "700 23px Trebuchet MS";
-  ctx.textAlign = "left";
-  ctx.fillText("LEFT BANK", 128, 1018);
-  ctx.textAlign = "right";
-  ctx.fillText("RIGHT BANK", 772, 1018);
-
-  ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-  ctx.font = "700 24px Palatino Linotype";
-  ctx.fillText("HOLD TO LAUNCH", 450, 1300);
-
-  if (state.flashTimer > 0) {
-    ctx.globalAlpha = state.flashTimer * 2.4;
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "900 42px Palatino Linotype";
-    ctx.fillText(`HOT STREAK x${state.multiplier}`, 450, 96);
-  }
-
-  if (!state.running && !state.gameOver) {
-    ctx.fillStyle = "rgba(8, 3, 4, 0.44)";
-    roundRect(196, 578, 508, 164, 28, true, false);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "900 56px Palatino Linotype";
-    ctx.fillText("PRESS START", 450, 648);
-    ctx.font = "700 24px Trebuchet MS";
-    ctx.fillText("Then hold launch and release to send the ball up the rail.", 450, 692);
-  }
-
-  if (state.gameOver) {
-    ctx.fillStyle = "rgba(10, 3, 4, 0.6)";
-    roundRect(182, 544, 536, 226, 30, true, false);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "900 64px Palatino Linotype";
-    ctx.fillText("GAME OVER", 450, 626);
-    ctx.font = "800 28px Trebuchet MS";
-    ctx.fillText(`Final Take: ${state.score.toLocaleString()}`, 450, 672);
-    ctx.fillText("Press Start for another midnight run.", 450, 714);
-  }
-  ctx.restore();
-}
-
-function roundRect(x, y, width, height, radius, fill, stroke) {
+function drawRoundedRect(x, y, width, height, radius, fill = true, stroke = true) {
   ctx.beginPath();
   ctx.moveTo(x + radius, y);
   ctx.arcTo(x + width, y, x + width, y + height, radius);
@@ -1238,47 +906,402 @@ function roundRect(x, y, width, height, radius, fill, stroke) {
   }
 }
 
-function loop(timestamp) {
+function drawGlowLine(points, color, width) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.shadowColor = color;
+  ctx.shadowBlur = width * 1.2;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i += 1) {
+    ctx.lineTo(points[i].x, points[i].y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawTable() {
+  const shakeX = (Math.random() - 0.5) * state.cameraShake;
+  const shakeY = (Math.random() - 0.5) * state.cameraShake;
+  ctx.clearRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#57218a");
+  bg.addColorStop(0.42, "#2c0f4c");
+  bg.addColorStop(1, "#10051b");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  const glow = ctx.createRadialGradient(450, 240, 60, 450, 240, 420);
+  glow.addColorStop(0, "rgba(255,255,255,0.2)");
+  glow.addColorStop(0.3, "rgba(255,79,195,0.2)");
+  glow.addColorStop(0.58, "rgba(65,240,255,0.08)");
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = "rgba(255,255,255,0.14)";
+  ctx.lineWidth = 8;
+  ctx.strokeRect(24, 24, W - 48, H - 48);
+
+  const frame = ctx.createLinearGradient(0, 120, 0, H);
+  frame.addColorStop(0, "rgba(255,255,255,0.06)");
+  frame.addColorStop(1, "rgba(255,255,255,0.01)");
+  ctx.fillStyle = frame;
+  ctx.fillRect(92, 108, 694, 1190);
+
+  drawGlowLine([{ x: 120, y: 116 }, { x: 780, y: 116 }], "rgba(255,255,255,0.12)", 3);
+  drawGlowLine(ramps[0].points, "rgba(65,240,255,0.65)", 12);
+  drawGlowLine(ramps[1].points, "rgba(255,79,195,0.65)", 12);
+  drawGlowLine(ramps[0].points, "rgba(255,255,255,0.35)", 3);
+  drawGlowLine(ramps[1].points, "rgba(255,255,255,0.35)", 3);
+
+  ctx.save();
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "900 120px Georgia";
+  ctx.textAlign = "center";
+  ctx.translate(450, 760);
+  ctx.rotate(-0.08);
+  ctx.fillText("SYNDICATE", 0, 0);
+  ctx.restore();
+
+  ctx.fillStyle = "rgba(255,255,255,0.94)";
+  ctx.font = "900 70px Georgia";
+  ctx.textAlign = "center";
+  ctx.shadowColor = "rgba(255,79,195,0.55)";
+  ctx.shadowBlur = 24;
+  ctx.fillText("NEON NIGHT", 450, 142);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = "rgba(255,255,255,0.88)";
+  ctx.font = "800 28px Trebuchet MS";
+  ctx.fillText("CRYSTAL JACKPOT  •  SUGAR RUSH TABLE  •  MIDNIGHT MODE", 450, 188);
+
+  drawRolloverLanes();
+  drawSideLanes();
+  drawTargets();
+  drawBumpers();
+  drawSlings();
+  drawFlippers();
+  drawLauncher();
+  drawParticles();
+  drawBall();
+  drawTableText();
+  drawOverlay();
+
+  ctx.restore();
+}
+
+function drawRolloverLanes() {
+  ctx.save();
+  ctx.textAlign = "center";
+  for (const lane of rolloverLanes) {
+    const alpha = 0.2 + lane.lit * 0.55;
+    ctx.fillStyle = lane.lit > 0 ? `${lane.color}44` : "rgba(255,255,255,0.05)";
+    ctx.strokeStyle = lane.lit > 0 ? lane.color : "rgba(255,255,255,0.16)";
+    ctx.lineWidth = 3;
+    ctx.shadowColor = lane.color;
+    ctx.shadowBlur = lane.lit > 0 ? 18 : 0;
+    drawRoundedRect(lane.x - lane.w / 2, lane.y - lane.h / 2, lane.w, lane.h, 16, true, true);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = `rgba(255,255,255,${0.8 + alpha * 0.2})`;
+    ctx.font = "800 18px Trebuchet MS";
+    ctx.fillText(lane.label, lane.x, lane.y + 6);
+  }
+  ctx.restore();
+}
+
+function drawSideLanes() {
+  ctx.save();
+  for (const lane of sideLanes) {
+    ctx.fillStyle = lane.lit > 0 ? `${lane.color}30` : "rgba(255,255,255,0.03)";
+    ctx.strokeStyle = lane.lit > 0 ? lane.color : "rgba(255,255,255,0.1)";
+    ctx.lineWidth = 2;
+    drawRoundedRect(lane.x, lane.y, lane.w, lane.h, 24, true, true);
+    ctx.save();
+    ctx.translate(lane.x + lane.w / 2, lane.y + lane.h / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = "rgba(255,255,255,0.82)";
+    ctx.font = "800 20px Trebuchet MS";
+    ctx.fillText(lane.label, 0, 7);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawTargets() {
+  ctx.save();
+  ctx.textAlign = "center";
+  for (const target of targets) {
+    ctx.fillStyle = target.lit > 0 ? `${target.color}50` : "rgba(255,255,255,0.05)";
+    ctx.strokeStyle = target.lit > 0 ? target.color : "rgba(255,255,255,0.18)";
+    ctx.lineWidth = target.lit > 0 ? 4 : 2;
+    ctx.shadowColor = target.color;
+    ctx.shadowBlur = target.lit > 0 ? 18 : 0;
+    drawRoundedRect(target.x - target.w / 2, target.y - target.h / 2, target.w, target.h, 14, true, true);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.font = target.label.length > 2 ? "800 18px Trebuchet MS" : "900 24px Trebuchet MS";
+    ctx.fillText(target.label, target.x, target.y + 8);
+  }
+  ctx.restore();
+}
+
+function drawBumpers() {
+  ctx.save();
+  ctx.textAlign = "center";
+  for (const bumper of bumpers) {
+    const pulse = 0.75 + Math.sin(state.lampsTime * 5 + bumper.x * 0.01) * 0.12;
+    const outer = ctx.createRadialGradient(bumper.x, bumper.y, 12, bumper.x, bumper.y, bumper.r + 42);
+    outer.addColorStop(0, "rgba(255,255,255,0.5)");
+    outer.addColorStop(0.24, `${bumper.color}cc`);
+    outer.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = outer;
+    ctx.beginPath();
+    ctx.arc(bumper.x, bumper.y, bumper.r + 42, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowColor = bumper.color;
+    ctx.shadowBlur = 22 + bumper.glow * 24;
+    ctx.fillStyle = bumper.color;
+    ctx.beginPath();
+    ctx.arc(bumper.x, bumper.y, bumper.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = `rgba(255,255,255,${0.82 * pulse})`;
+    ctx.beginPath();
+    ctx.arc(bumper.x, bumper.y, bumper.r * 0.58, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = bumper.ring;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(bumper.x, bumper.y, bumper.r + 9, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "#22051f";
+    ctx.font = "900 17px Trebuchet MS";
+    ctx.fillText(bumper.label, bumper.x, bumper.y + 6);
+  }
+  ctx.restore();
+}
+
+function drawSlings() {
+  ctx.save();
+  slings.forEach((sling, index) => {
+    ctx.beginPath();
+    ctx.moveTo(sling[0].x, sling[0].y);
+    ctx.lineTo(sling[1].x, sling[1].y);
+    ctx.lineTo(sling[2].x, sling[2].y);
+    ctx.closePath();
+    const gradient = ctx.createLinearGradient(sling[0].x, sling[0].y, sling[1].x, sling[1].y);
+    gradient.addColorStop(0, index === 0 ? palette.aqua : palette.pink);
+    gradient.addColorStop(1, palette.orange);
+    ctx.fillStyle = gradient;
+    ctx.globalAlpha = 0.65;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "rgba(255,255,255,0.64)";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function drawFlippers() {
+  drawSingleFlipper(leftFlipper, palette.aqua);
+  drawSingleFlipper(rightFlipper, palette.pink);
+}
+
+function drawSingleFlipper(flipper, color) {
+  const tip = flipperTip(flipper);
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineWidth = 30;
+  ctx.strokeStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 24 + flipper.glow * 16;
+  ctx.beginPath();
+  ctx.moveTo(flipper.pivot.x, flipper.pivot.y);
+  ctx.lineTo(tip.x, tip.y);
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "rgba(255,255,255,0.35)";
+  ctx.lineWidth = 10;
+  ctx.beginPath();
+  ctx.moveTo(flipper.pivot.x, flipper.pivot.y);
+  ctx.lineTo(tip.x, tip.y);
+  ctx.stroke();
+
+  ctx.fillStyle = "#fffefc";
+  ctx.beginPath();
+  ctx.arc(flipper.pivot.x, flipper.pivot.y, 18, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawLauncher() {
+  ctx.save();
+  ctx.fillStyle = "rgba(255,255,255,0.08)";
+  ctx.fillRect(716, 126, 68, 1152);
+  ctx.strokeStyle = "rgba(255,255,255,0.18)";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(716, 126, 68, 1152);
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.font = "800 22px Trebuchet MS";
+  ctx.textAlign = "center";
+  ctx.fillText("LAUNCH", 750, 220);
+  if (ball.inPlunger) {
+    const chargeHeight = state.launcherCharge * 170;
+    const gradient = ctx.createLinearGradient(0, 1260 - chargeHeight, 0, 1260);
+    gradient.addColorStop(0, "rgba(255,211,79,0.95)");
+    gradient.addColorStop(1, "rgba(255,79,195,0.95)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(726, 1260 - chargeHeight, 48, chargeHeight);
+  }
+  ctx.restore();
+}
+
+function drawParticles() {
+  ctx.save();
+  state.sparkles.forEach((particle) => {
+    const alpha = particle.life / particle.maxLife;
+    ctx.fillStyle = `${particle.color}${Math.round(alpha * 120).toString(16).padStart(2, "0")}`;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  state.bursts.forEach((particle) => {
+    const alpha = particle.life / particle.maxLife;
+    ctx.fillStyle = `${particle.color}${Math.round(alpha * 180).toString(16).padStart(2, "0")}`;
+    ctx.fillRect(particle.x, particle.y, particle.size, particle.size);
+  });
+  ctx.restore();
+}
+
+function drawBall() {
+  if (!ball.active) {
+    return;
+  }
+  ctx.save();
+  for (let i = 0; i < ball.trail.length; i += 1) {
+    const point = ball.trail[i];
+    const alpha = i / ball.trail.length;
+    ctx.fillStyle = `rgba(255,255,255,${alpha * 0.12})`;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, ball.r * alpha * 0.95, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const gradient = ctx.createRadialGradient(ball.x - 4, ball.y - 7, 2, ball.x, ball.y, ball.r + 6);
+  gradient.addColorStop(0, "#ffffff");
+  gradient.addColorStop(0.45, "#f6dcff");
+  gradient.addColorStop(1, "#a774d2");
+  ctx.shadowColor = "rgba(255,255,255,0.85)";
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawTableText() {
+  ctx.save();
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.font = "800 22px Trebuchet MS";
+  ctx.textAlign = "left";
+  ctx.fillText("LEFT ORBIT", 122, 1020);
+  ctx.textAlign = "right";
+  ctx.fillText("RIGHT ORBIT", 776, 1020);
+  ctx.textAlign = "center";
+  ctx.font = "700 24px Georgia";
+  ctx.fillText("HOLD TO CHARGE LAUNCH", 450, 1302);
+  if (state.flashTimer > 0) {
+    ctx.globalAlpha = state.flashTimer * 2;
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 42px Georgia";
+    ctx.fillText(`COMBO x${Math.max(1, state.combo)}`, 450, 90);
+  }
+  ctx.restore();
+}
+
+function drawOverlay() {
+  if (state.paused || state.gameOver || !state.running) {
+    ctx.save();
+    ctx.fillStyle = "rgba(6, 3, 14, 0.56)";
+    drawRoundedRect(170, 560, 560, 210, 28, true, false);
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center";
+    if (!state.running && !state.gameOver) {
+      ctx.font = "900 56px Georgia";
+      ctx.fillText("PRESS START", 450, 646);
+      ctx.font = "700 24px Trebuchet MS";
+      ctx.fillText("Launch into a bright modern arcade run.", 450, 694);
+    } else if (state.paused) {
+      ctx.font = "900 56px Georgia";
+      ctx.fillText("PAUSED", 450, 646);
+      ctx.font = "700 24px Trebuchet MS";
+      ctx.fillText("Hit Pause again or press P to continue.", 450, 694);
+    } else if (state.gameOver) {
+      ctx.font = "900 56px Georgia";
+      ctx.fillText("GAME OVER", 450, 632);
+      ctx.font = "800 28px Trebuchet MS";
+      ctx.fillText(`Final Score ${state.score.toLocaleString()}`, 450, 676);
+      ctx.font = "700 22px Trebuchet MS";
+      ctx.fillText("Press Start for a fresh run.", 450, 716);
+    }
+    ctx.restore();
+  }
+}
+
+function gameLoop(timestamp) {
   if (!state.lastTime) {
     state.lastTime = timestamp;
   }
-
-  let delta = (timestamp - state.lastTime) / 1000;
+  let dt = (timestamp - state.lastTime) / 1000;
   state.lastTime = timestamp;
-  delta = Math.min(delta, MAX_DT);
-
-  updatePhysics(delta || DT);
-  drawBackground();
-  requestAnimationFrame(loop);
+  dt = Math.min(dt, MAX_DT);
+  updatePhysics(dt);
+  drawTable();
+  requestAnimationFrame(gameLoop);
 }
 
 startButton.addEventListener("click", startGame);
-resetButton.addEventListener("click", resetTable);
+pauseButton.addEventListener("click", pauseGame);
+resetButton.addEventListener("click", () => {
+  resetRun();
+  pauseButton.textContent = "Pause";
+});
 audioButton.addEventListener("click", async () => {
   if (!audio) {
     audio = makeAudioEngine();
   }
   if (audio) {
     await audio.unlock();
-    state.audioEnabled = !state.audioEnabled;
-    audio.toggle(state.audioEnabled);
-  } else {
-    state.audioEnabled = false;
   }
-  audioButton.textContent = `Audio: ${state.audioEnabled ? "On" : "Off"}`;
-  setStatus(state.audioEnabled
-    ? "Audio is live. Arcade hits up front, lounge band in the back."
-    : "Audio muted. The room is still dangerous, just quieter.");
+  state.audioEnabled = !state.audioEnabled;
+  if (audio) {
+    audio.toggle(state.audioEnabled);
+  }
+  audioButton.textContent = state.audioEnabled ? "Audio On" : "Audio Off";
+  setStatus(state.audioEnabled ? "Audio on. Bright arcade energy restored." : "Audio off. Visual-only run.");
 });
 
 window.addEventListener("keydown", (event) => handleKey(event, true), { passive: false });
 window.addEventListener("keyup", (event) => handleKey(event, false), { passive: false });
 
-pointerPress(leftFlipperButton, () => setFlipperPressed("left", true), () => setFlipperPressed("left", false));
-pointerPress(rightFlipperButton, () => setFlipperPressed("right", true), () => setFlipperPressed("right", false));
-pointerPress(launchButton, () => setLaunchHeld(true), () => setLaunchHeld(false));
+bindTouchControl(leftFlipperButton, () => setFlipperPressed("left", true), () => setFlipperPressed("left", false));
+bindTouchControl(rightFlipperButton, () => setFlipperPressed("right", true), () => setFlipperPressed("right", false));
+bindTouchControl(launchButton, () => setLaunchHeld(true), () => setLaunchHeld(false));
 
-updateHud();
-resetBallToPlunger();
-audioButton.textContent = `Audio: ${state.audioEnabled ? "On" : "Off"}`;
-requestAnimationFrame(loop);
+resetRun();
+audioButton.textContent = state.audioEnabled ? "Audio On" : "Audio Off";
+requestAnimationFrame(gameLoop);
