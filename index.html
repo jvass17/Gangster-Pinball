@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gangster Pinball</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="page-glow"></div>
+
+  <main class="app-shell">
+    <section class="hud-panel">
+      <div class="brand-lockup">
+        <p class="eyebrow">Back-Room Neon Arcade</p>
+        <h1>Gangster Pinball</h1>
+        <p class="tagline">Cash. Smoke. Chrome. One bad bounce from disaster.</p>
+      </div>
+
+      <div class="score-grid">
+        <article class="score-card">
+          <span class="label">Score</span>
+          <strong id="scoreValue">0</strong>
+        </article>
+        <article class="score-card">
+          <span class="label">High Roll</span>
+          <strong id="highScoreValue">0</strong>
+        </article>
+        <article class="score-card">
+          <span class="label">Balls</span>
+          <strong id="ballsValue">3</strong>
+        </article>
+        <article class="score-card">
+          <span class="label">Heat</span>
+          <strong id="multiplierValue">x1</strong>
+        </article>
+      </div>
+
+      <div class="button-row">
+        <button id="startButton" class="arcade-button primary">Start Game</button>
+        <button id="resetButton" class="arcade-button">Reset Table</button>
+        <button id="audioButton" class="arcade-button">Audio: On</button>
+      </div>
+
+      <div class="status-strip">
+        <span class="status-title">Table Talk</span>
+        <span id="statusText">Step up and press Start. Hold launch to fire the ball up the rail.</span>
+      </div>
+
+      <div class="instruction-grid">
+        <article class="instruction-card">
+          <h2>Desktop Controls</h2>
+          <p><strong>Flippers:</strong> <kbd>Left Arrow</kbd> / <kbd>Right Arrow</kbd> or <kbd>A</kbd> / <kbd>D</kbd></p>
+          <p><strong>Launcher:</strong> Hold <kbd>Down Arrow</kbd> or <kbd>S</kbd>, release to fire</p>
+          <p><strong>Start:</strong> <kbd>Enter</kbd> or the on-screen button</p>
+        </article>
+        <article class="instruction-card">
+          <h2>House Rules</h2>
+          <p>Red bumpers and gold targets pay out big. Spinner lanes build heat.</p>
+          <p>Three balls only. Stay sharp or the underworld takes your cash.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="table-panel">
+      <div class="table-frame">
+        <div class="table-topper">
+          <div class="topper-sign">
+            <span class="sign-small">Midnight Family Business</span>
+            <span class="sign-main">La Notte Royale</span>
+          </div>
+          <div class="topper-lights">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+
+        <canvas id="gameCanvas" width="900" height="1400" aria-label="Gangster pinball table"></canvas>
+
+        <div class="touch-controls" aria-label="Mobile controls">
+          <button id="leftFlipperButton" class="touch-button touch-left">Left Flipper</button>
+          <button id="launchButton" class="touch-button touch-center">Launch</button>
+          <button id="rightFlipperButton" class="touch-button touch-right">Right Flipper</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
